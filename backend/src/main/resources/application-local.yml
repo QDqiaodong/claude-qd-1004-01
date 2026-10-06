@@ -1,0 +1,29 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:citygas_local;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Shanghai
+  jackson:
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+
+# 仅本地/端到端联调使用（H2 内存库）：mvn spring-boot:run -Dspring-boot.run.profiles=local -Dspring-boot.run.useTestClasspath=true
+# 生产仍走 application.yml 的 MySQL，不受影响。
