@@ -13,9 +13,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.citygas.network.dto.BatchCreateRequest;
 import com.citygas.network.entity.GasUser;
+import com.citygas.network.entity.GateStation;
 import com.citygas.network.entity.PipeSegment;
 import com.citygas.network.entity.RegulatorStation;
 import com.citygas.network.repository.GasUserRepository;
+import com.citygas.network.repository.GateStationRepository;
 import com.citygas.network.repository.PipeSegmentRepository;
 import com.citygas.network.repository.RegulatorStationRepository;
 import com.citygas.network.tenant.TenantContext;
@@ -37,6 +39,8 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected GasUserRepository gasUserRepository;
     @Autowired
+    protected GateStationRepository gateStationRepository;
+    @Autowired
     protected JdbcTemplate jdbcTemplate;
     @Autowired
     protected EntityManager entityManager;
@@ -46,6 +50,7 @@ public abstract class BaseIntegrationTest {
         TenantContext.set("A片区");
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         for (String table : List.of(
+                "maint_order_impact", "maint_order_segment", "maint_order",
                 "inspect_idem", "inspect_hazard_history", "inspect_hazard",
                 "inspect_batch_target", "inspect_batch",
                 "gas_user", "pipe_segment", "regulator_station", "gate_station")) {
@@ -62,11 +67,16 @@ public abstract class BaseIntegrationTest {
     }
 
     protected PipeSegment newSegment(String tenant, String code) {
+        return newSegment(tenant, code, "起点-" + code, "终点-" + code);
+    }
+
+    /** 指定起止点的管段：检修影响评估的拓扑关联以起止点为锚 */
+    protected PipeSegment newSegment(String tenant, String code, String startPoint, String endPoint) {
         TenantContext.set(tenant);
         PipeSegment s = new PipeSegment();
         s.setSegCode(code);
-        s.setStartPoint("起点-" + code);
-        s.setEndPoint("终点-" + code);
+        s.setStartPoint(startPoint);
+        s.setEndPoint(endPoint);
         s.setMaterial("钢管");
         s.setPressureLevel("中压");
         s.setLengthM(new BigDecimal("1200.00"));
@@ -75,10 +85,15 @@ public abstract class BaseIntegrationTest {
     }
 
     protected RegulatorStation newRegulator(String tenant, String code) {
+        return newRegulator(tenant, code, "调压站-" + code);
+    }
+
+    /** 指定站名的调压站：站名与管段起止点互相包含即被自动关联进影响清单 */
+    protected RegulatorStation newRegulator(String tenant, String code, String stationName) {
         TenantContext.set(tenant);
         RegulatorStation r = new RegulatorStation();
         r.setStationCode(code);
-        r.setStationName("调压站-" + code);
+        r.setStationName(stationName);
         r.setStationType("区域调压站");
         r.setInPressureMpa(new BigDecimal("0.380"));
         r.setOutletPressureMpa(new BigDecimal("0.120"));
@@ -86,12 +101,31 @@ public abstract class BaseIntegrationTest {
         return regulatorRepository.saveAndFlush(r);
     }
 
+    /** 指定站名的门站 */
+    protected GateStation newGateStation(String tenant, String code, String stationName) {
+        TenantContext.set(tenant);
+        GateStation g = new GateStation();
+        g.setStationCode(code);
+        g.setStationName(stationName);
+        g.setInletPressureMpa(new BigDecimal("1.200"));
+        g.setOutletPressureMpa(new BigDecimal("0.360"));
+        g.setDailyFlowM3(new BigDecimal("10000"));
+        g.setOdorantMg(new BigDecimal("25"));
+        g.setStatus("运行");
+        return gateStationRepository.saveAndFlush(g);
+    }
+
     protected GasUser newUser(String tenant, String userNo) {
+        return newUser(tenant, userNo, "测试地址 " + userNo);
+    }
+
+    /** 指定地址的用户：地址包含管段起止点即被自动关联进影响清单 */
+    protected GasUser newUser(String tenant, String userNo, String address) {
         TenantContext.set(tenant);
         GasUser u = new GasUser();
         u.setUserNo(userNo);
         u.setUserName("用户-" + userNo);
-        u.setAddress("测试地址 " + userNo);
+        u.setAddress(address);
         u.setMeterNo("M-" + userNo);
         u.setLastReading(BigDecimal.ZERO);
         u.setCurrentReading(BigDecimal.ZERO);

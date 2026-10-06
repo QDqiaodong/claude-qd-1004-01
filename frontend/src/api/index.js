@@ -77,5 +77,22 @@ export default {
   inspectTarget: (batchId, linkId, d) =>
     call(http.post(`/inspection-batches/${batchId}/targets/${linkId}/inspect`, d)),
   rectifyHazard: (id, d) => call(http.post(`/hazards/${id}/rectify`, d)),
-  reviewHazard: (id, d) => call(http.post(`/hazards/${id}/review`, d))
+  reviewHazard: (id, d) => call(http.post(`/hazards/${id}/review`, d)),
+
+  // ---------------- 管段检修影响评估与停复气联动 ----------------
+  listOrders: (p) => call(http.get('/maintenance-orders', params(p))),
+  getOrder: (id) => call(http.get(`/maintenance-orders/${id}`)),
+  createOrder: (d) => call(http.post('/maintenance-orders', d)),
+  updateOrder: (id, d) => call(http.put(`/maintenance-orders/${id}`, d)),
+  refreshImpact: (id, version) =>
+    call(http.post(`/maintenance-orders/${id}/refresh-impact`, { version })),
+  addBoundary: (id, d) => call(http.post(`/maintenance-orders/${id}/boundaries`, d)),
+  removeBoundary: (id, impactId, version) =>
+    call(http.delete(`/maintenance-orders/${id}/boundaries/${impactId}`, { data: { version } })),
+  // 状态推进统一入口：publish / stop-gas / finish-work / restore-gas
+  orderAction: (id, action, d) => call(http.post(`/maintenance-orders/${id}/${action}`, d)),
+  acceptSegment: (id, linkId, d) =>
+    call(http.post(`/maintenance-orders/${id}/segments/${linkId}/accept`, d)),
+  confirmUser: (id, impactId, d) =>
+    call(http.post(`/maintenance-orders/${id}/impacts/${impactId}/confirm`, d))
 }

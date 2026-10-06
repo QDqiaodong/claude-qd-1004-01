@@ -129,3 +129,57 @@ CREATE TABLE IF NOT EXISTS inspect_idem (
     created_at    DATETIME NOT NULL,
     CONSTRAINT uk_inspect_idem UNIQUE (tenant_id, request_id)
 );
+
+CREATE TABLE IF NOT EXISTS maint_order (
+    id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id        VARCHAR(16) NOT NULL,
+    order_no         VARCHAR(40) NOT NULL,
+    plan_start_at    DATETIME NOT NULL,
+    plan_end_at      DATETIME,
+    leader_name      VARCHAR(32) NOT NULL,
+    scope_remark     VARCHAR(512) NOT NULL,
+    status           VARCHAR(16) NOT NULL,
+    version          BIGINT NOT NULL DEFAULT 0,
+    published_at     DATETIME,
+    published_by     VARCHAR(32),
+    stopped_at       DATETIME,
+    stopped_by       VARCHAR(32),
+    work_finished_at DATETIME,
+    restored_at      DATETIME,
+    restored_by      VARCHAR(32),
+    completed_at     DATETIME,
+    created_at       DATETIME NOT NULL,
+    updated_at       DATETIME NOT NULL,
+    CONSTRAINT uk_maint_order_no UNIQUE (tenant_id, order_no)
+);
+
+CREATE TABLE IF NOT EXISTS maint_order_segment (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id     VARCHAR(16) NOT NULL,
+    order_id      BIGINT NOT NULL,
+    segment_id    BIGINT NOT NULL,
+    seg_code      VARCHAR(24) NOT NULL,
+    seg_name      VARCHAR(160) NOT NULL,
+    accept_status VARCHAR(16) NOT NULL DEFAULT '待验收',
+    accept_note   VARCHAR(512),
+    accepted_at   DATETIME,
+    accepted_by   VARCHAR(32),
+    CONSTRAINT uk_maint_order_segment UNIQUE (tenant_id, order_id, segment_id)
+);
+
+CREATE TABLE IF NOT EXISTS maint_order_impact (
+    id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id      VARCHAR(16) NOT NULL,
+    order_id       BIGINT NOT NULL,
+    object_type    VARCHAR(24) NOT NULL,
+    object_id      BIGINT NOT NULL,
+    object_code    VARCHAR(24) NOT NULL,
+    object_name    VARCHAR(96) NOT NULL,
+    source         VARCHAR(8) NOT NULL,
+    via_desc       VARCHAR(128),
+    manual_note    VARCHAR(512),
+    confirm_status VARCHAR(16) NOT NULL DEFAULT '无需确认',
+    confirmed_at   DATETIME,
+    confirmed_by   VARCHAR(32),
+    CONSTRAINT uk_maint_order_impact UNIQUE (tenant_id, order_id, object_type, object_id)
+);

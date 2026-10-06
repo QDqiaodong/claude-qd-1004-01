@@ -17,6 +17,9 @@ CREATE DATABASE IF NOT EXISTS citygas_network
 USE citygas_network;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS maint_order_impact;
+DROP TABLE IF EXISTS maint_order_segment;
+DROP TABLE IF EXISTS maint_order;
 DROP TABLE IF EXISTS inspect_idem;
 DROP TABLE IF EXISTS inspect_hazard_history;
 DROP TABLE IF EXISTS inspect_hazard;
@@ -223,4 +226,71 @@ CREATE TABLE inspect_idem (
     response_body   VARCHAR(2048) NOT NULL COMMENT '首次成功响应 JSON 快照',
     created_at      DATETIME NOT NULL,
     UNIQUE KEY uk_inspect_idem (tenant_id, request_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================================
+-- 管段检修影响评估与停复气联动
+-- 检修单状态机：待发布 → 待停气 → 施工中 → 待验收 → 待复气 → 已完成
+--   发布时冻结影响快照：之后档案变化只在详情里提示差异，绝不静默改写已发布范围；
+--   停气后才可开工；复气放行 = 全部管段验收通过 + 受影响用户安全确认完成。
+-- 所有新表同样带 tenant_id 鉴别器，读写强制租户隔离。
+-- =====================================================================
+
+-- ---------------- 检修单 ----------------
+CREATE TABLE maint_order (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       VARCHAR(16) NOT NULL COMMENT 'A片区/B片区（@TenantId）',
+    order_no        VARCHAR(40) NOT NULL COMMENT '检修单号，租户内唯一',
+    plan_start_at   DATETIME NOT NULL COMMENT '计划开始时间',
+    plan_end_at     DATETIME COMMENT '计划结束时间',
+    leader_name     VARCHAR(32) NOT NULL COMMENT '施工负责人',
+    scope_remark    VARCHAR(512) NOT NULL COMMENT '检修范围说明，不允许空白',
+    status          VARCHAR(16) NOT NULL COMMENT '待发布/待停气/施工中/待验收/待复气/已完成',
+    version         BIGINT NOT NULL DEFAULT 0 COMMENT '乐观锁版本，写操作统一校验',
+    published_at    DATETIME COMMENT '发布时间（发布即冻结影响快照）',
+    published_by    VARCHAR(32) COMMENT '发布操作人',
+    stopped_at      DATETIME COMMENT '停气时间（停气后才可开工）',
+    stopped_by      VARCHAR(32) COMMENT '停气操作人',
+    work_finished_at DATETIME COMMENT '完工报验时间',
+    restored_at     DATETIME COMMENT '复气放行时间',
+    restored_by     VARCHAR(32) COMMENT '复气操作人',
+    completed_at    DATETIME COMMENT '完成时间',
+    created_at      DATETIME NOT NULL,
+    updated_at      DATETIME NOT NULL,
+    UNIQUE KEY uk_maint_order_no (tenant_id, order_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------- 检修范围管段（逐段验收） ----------------
+CREATE TABLE maint_order_segment (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       VARCHAR(16) NOT NULL,
+    order_id        BIGINT NOT NULL,
+    segment_id      BIGINT NOT NULL,
+    seg_code        VARCHAR(24) NOT NULL COMMENT '管段编号快照',
+    seg_name        VARCHAR(160) NOT NULL COMMENT '起止点快照：起点 → 终点',
+    accept_status   VARCHAR(16) NOT NULL DEFAULT '待验收' COMMENT '待验收/已通过',
+    accept_note     VARCHAR(512) COMMENT '验收意见',
+    accepted_at     DATETIME COMMENT '验收时间',
+    accepted_by     VARCHAR(32) COMMENT '验收人',
+    UNIQUE KEY uk_maint_order_segment (tenant_id, order_id, segment_id),
+    KEY idx_maint_segment_order (tenant_id, order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------- 检修影响清单（发布即冻结的快照） ----------------
+CREATE TABLE maint_order_impact (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       VARCHAR(16) NOT NULL,
+    order_id        BIGINT NOT NULL,
+    object_type     VARCHAR(24) NOT NULL COMMENT 'GATE_STATION/REGULATOR_STATION/GAS_USER',
+    object_id       BIGINT NOT NULL,
+    object_code     VARCHAR(24) NOT NULL COMMENT '对象编号快照（station_code/user_no）',
+    object_name     VARCHAR(96) NOT NULL COMMENT '对象名称快照',
+    source          VARCHAR(8) NOT NULL COMMENT 'AUTO 拓扑自动关联 / MANUAL 人工边界补充',
+    via_desc        VARCHAR(128) COMMENT '关联来源，如「管段PS-A01·起点」；人工补充为「人工补充」',
+    manual_note     VARCHAR(512) COMMENT '人工说明：MANUAL 行必填，记录无法自动判定的边界理由',
+    confirm_status  VARCHAR(16) NOT NULL DEFAULT '无需确认' COMMENT '待确认/已确认/无需确认（仅燃气用户需确认）',
+    confirmed_at    DATETIME COMMENT '安全确认时间',
+    confirmed_by    VARCHAR(32) COMMENT '安全确认操作人',
+    UNIQUE KEY uk_maint_order_impact (tenant_id, order_id, object_type, object_id),
+    KEY idx_maint_impact_order (tenant_id, order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

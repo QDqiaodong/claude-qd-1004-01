@@ -107,6 +107,65 @@ public final class Dict {
     public static final String ACTION_PASS = "复核通过";
     public static final String ACTION_REJECT = "驳回";
 
+    // ---------------- 管段检修与停复气联动 ----------------
+    /** 检修单状态机：待发布 → 待停气 → 施工中 → 待验收 → 待复气 → 已完成 */
+    public static final String MAINT_DRAFT = "待发布";
+    public static final String MAINT_PUBLISHED = "待停气";
+    public static final String MAINT_WORKING = "施工中";
+    public static final String MAINT_ACCEPTING = "待验收";
+    public static final String MAINT_RESTORING = "待复气";
+    public static final String MAINT_DONE = "已完成";
+
+    public static final List<String> MAINT_STATUSES = List.of(
+            MAINT_DRAFT, MAINT_PUBLISHED, MAINT_WORKING, MAINT_ACCEPTING, MAINT_RESTORING, MAINT_DONE);
+
+    /** 检修单允许的相邻跳转（发布/停气/完工走业务方法收口，验收→待复气由末段验收自动推进） */
+    private static final Map<String, List<String>> MAINT_NEXT = Map.of(
+            MAINT_DRAFT, List.of(MAINT_PUBLISHED),
+            MAINT_PUBLISHED, List.of(MAINT_WORKING),
+            MAINT_WORKING, List.of(MAINT_ACCEPTING),
+            MAINT_ACCEPTING, List.of(MAINT_RESTORING),
+            MAINT_RESTORING, List.of(MAINT_DONE),
+            MAINT_DONE, List.of());
+
+    /** 影响对象类型 */
+    public static final String IMPACT_GATE_STATION = "GATE_STATION";
+    public static final String IMPACT_REGULATOR_STATION = "REGULATOR_STATION";
+    public static final String IMPACT_GAS_USER = "GAS_USER";
+
+    public static final List<String> IMPACT_TYPES =
+            List.of(IMPACT_GATE_STATION, IMPACT_REGULATOR_STATION, IMPACT_GAS_USER);
+
+    /** 影响来源：AUTO 拓扑自动关联 / MANUAL 人工边界补充 */
+    public static final String IMPACT_SOURCE_AUTO = "AUTO";
+    public static final String IMPACT_SOURCE_MANUAL = "MANUAL";
+
+    /** 管段验收状态 */
+    public static final String ACCEPT_PENDING = "待验收";
+    public static final String ACCEPT_PASSED = "已通过";
+
+    /** 用户安全确认状态（场站类对象无需确认） */
+    public static final String CONFIRM_PENDING = "待确认";
+    public static final String CONFIRM_DONE = "已确认";
+    public static final String CONFIRM_NA = "无需确认";
+
+    /** 影响差异类型：发布后快照与当前拓扑/档案的偏差，只提示不改写 */
+    public static final String DIFF_ADDED = "ADDED";
+    public static final String DIFF_REMOVED = "REMOVED";
+    public static final String DIFF_UNAVAILABLE = "UNAVAILABLE";
+
+    public static boolean isValidMaintStatus(String s) {
+        return s != null && MAINT_STATUSES.contains(s);
+    }
+
+    public static boolean canTransferMaint(String from, String to) {
+        return MAINT_NEXT.getOrDefault(from, List.of()).contains(to);
+    }
+
+    public static boolean isValidImpactType(String t) {
+        return t != null && IMPACT_TYPES.contains(t);
+    }
+
     public static boolean isValidBatchStatus(String s) {
         return s != null && BATCH_STATUSES.contains(s);
     }
