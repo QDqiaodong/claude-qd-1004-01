@@ -13,9 +13,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.citygas.network.dto.BatchCreateRequest;
 import com.citygas.network.entity.GasUser;
+import com.citygas.network.entity.GateStation;
 import com.citygas.network.entity.PipeSegment;
 import com.citygas.network.entity.RegulatorStation;
 import com.citygas.network.repository.GasUserRepository;
+import com.citygas.network.repository.GateStationRepository;
 import com.citygas.network.repository.PipeSegmentRepository;
 import com.citygas.network.repository.RegulatorStationRepository;
 import com.citygas.network.tenant.TenantContext;
@@ -37,6 +39,8 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected GasUserRepository gasUserRepository;
     @Autowired
+    protected GateStationRepository gateStationRepository;
+    @Autowired
     protected JdbcTemplate jdbcTemplate;
     @Autowired
     protected EntityManager entityManager;
@@ -46,6 +50,7 @@ public abstract class BaseIntegrationTest {
         TenantContext.set("A片区");
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         for (String table : List.of(
+                "maintenance_idem", "maintenance_impact", "maintenance_order",
                 "inspect_idem", "inspect_hazard_history", "inspect_hazard",
                 "inspect_batch_target", "inspect_batch",
                 "gas_user", "pipe_segment", "regulator_station", "gate_station")) {
@@ -84,6 +89,19 @@ public abstract class BaseIntegrationTest {
         r.setOutletPressureMpa(new BigDecimal("0.120"));
         r.setStatus("运行");
         return regulatorRepository.saveAndFlush(r);
+    }
+
+    protected GateStation newGate(String tenant, String code, String stationName) {
+        TenantContext.set(tenant);
+        GateStation g = new GateStation();
+        g.setStationCode(code);
+        g.setStationName(stationName == null ? "门站-" + code : stationName);
+        g.setInletPressureMpa(new BigDecimal("1.200"));
+        g.setOutletPressureMpa(new BigDecimal("0.380"));
+        g.setDailyFlowM3(new BigDecimal("100000.00"));
+        g.setOdorantMg(new BigDecimal("22.00"));
+        g.setStatus("运行");
+        return gateStationRepository.saveAndFlush(g);
     }
 
     protected GasUser newUser(String tenant, String userNo) {

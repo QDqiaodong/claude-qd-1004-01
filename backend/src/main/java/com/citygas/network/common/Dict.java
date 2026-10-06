@@ -70,16 +70,86 @@ public final class Dict {
             BATCH_REVIEWING, List.of(BATCH_CLOSED, BATCH_RECTIFYING),
             BATCH_CLOSED, List.of());
 
-    /** 关联对象类型 */
+    /** 关联对象类型（巡检） */
     public static final String TARGET_PIPE_SEGMENT = "PIPE_SEGMENT";
     public static final String TARGET_REGULATOR_STATION = "REGULATOR_STATION";
     public static final String TARGET_GAS_USER = "GAS_USER";
 
+    /** 检修影响对象类型 */
+    public static final String TARGET_GATE_STATION = "GATE_STATION";
+    /** 人工边界对象（无法沿拓扑自动判定，由运营人员说明） */
+    public static final String TARGET_MANUAL = "MANUAL";
+
     public static final List<String> TARGET_TYPES =
             List.of(TARGET_PIPE_SEGMENT, TARGET_REGULATOR_STATION, TARGET_GAS_USER);
 
+    /** 检修影响清单允许的对象类型（含门站、人工边界） */
+    public static final List<String> MAINTENANCE_TARGET_TYPES = List.of(
+            TARGET_PIPE_SEGMENT, TARGET_GATE_STATION, TARGET_REGULATOR_STATION,
+            TARGET_GAS_USER, TARGET_MANUAL);
+
     public static boolean isValidTargetType(String t) {
         return t != null && TARGET_TYPES.contains(t);
+    }
+
+    public static boolean isValidMaintenanceTargetType(String t) {
+        return t != null && MAINTENANCE_TARGET_TYPES.contains(t);
+    }
+
+    // ---------------- 管段检修与停复气联动 ----------------
+    /** 检修单状态机：待发布 → 待停气 → 施工中 → 待验收 → 待复气 → 已完成 */
+    public static final String MO_DRAFT = "待发布";
+    public static final String MO_WAIT_CUTOFF = "待停气";
+    public static final String MO_WORKING = "施工中";
+    public static final String MO_WAIT_ACCEPT = "待验收";
+    public static final String MO_WAIT_RESTORE = "待复气";
+    public static final String MO_DONE = "已完成";
+
+    public static final List<String> MO_STATUSES = List.of(
+            MO_DRAFT, MO_WAIT_CUTOFF, MO_WORKING, MO_WAIT_ACCEPT, MO_WAIT_RESTORE, MO_DONE);
+
+    /** 检修单允许的相邻状态跳转（发布与复气收口单独加锁处理，不在此列） */
+    private static final Map<String, List<String>> MO_NEXT = Map.of(
+            MO_DRAFT, List.of(MO_WAIT_CUTOFF),
+            MO_WAIT_CUTOFF, List.of(MO_WORKING),
+            MO_WORKING, List.of(MO_WAIT_ACCEPT),
+            MO_WAIT_ACCEPT, List.of(MO_WAIT_RESTORE),
+            MO_WAIT_RESTORE, List.of(MO_DONE),
+            MO_DONE, List.of());
+
+    /** 影响来源：拓扑自动关联 / 人工边界说明 */
+    public static final String SOURCE_AUTO = "AUTO";
+    public static final String SOURCE_MANUAL = "MANUAL";
+
+    public static final String ACCEPT_PENDING = "未验收";
+    public static final String ACCEPT_PASSED = "验收通过";
+    public static final String ACCEPT_FAILED = "验收不通过";
+
+    public static final List<String> ACCEPT_RESULTS = List.of(ACCEPT_PASSED, ACCEPT_FAILED);
+
+    public static final String SAFETY_PENDING = "未确认";
+    public static final String SAFETY_CONFIRMED = "已确认";
+
+    /** 幂等动作 */
+    public static final String IDEM_PUBLISH = "PUBLISH";
+    public static final String IDEM_CUTOFF = "CUTOFF";
+    public static final String IDEM_START_WORK = "START_WORK";
+    public static final String IDEM_FINISH_WORK = "FINISH_WORK";
+    public static final String IDEM_ACCEPT = "ACCEPT";
+    public static final String IDEM_CONFIRM_SAFETY = "CONFIRM_SAFETY";
+    public static final String IDEM_REQUEST_RESTORE = "REQUEST_RESTORE";
+    public static final String IDEM_RESTORE = "RESTORE";
+
+    public static boolean isValidMaintenanceStatus(String s) {
+        return s != null && MO_STATUSES.contains(s);
+    }
+
+    public static boolean canTransferMaintenance(String from, String to) {
+        return MO_NEXT.getOrDefault(from, List.of()).contains(to);
+    }
+
+    public static boolean isValidAcceptResult(String s) {
+        return s != null && ACCEPT_RESULTS.contains(s);
     }
 
     /** 对象巡检结果 */

@@ -6,6 +6,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -23,11 +24,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 并发冲突：409 + 统一错误结构（如两人并发关闭批次，后来者不得覆盖结果）
+     * 并发冲突：409 + 统一错误结构（如两人并发关闭批次/发布检修单，后来者不得覆盖结果）
      */
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiResponse<Void>> handleConflict(ConflictException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.fail(e.getMessage()));
+    }
+
+    /**
+     * 乐观锁版本冲突（检修单 @Version）：两名操作员并发推进同一单据时，
+     * 未抢到版本的一方在这里返回 409，绝不留下部分状态。
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(ObjectOptimisticLockingFailureException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.fail("该单据刚被其他操作员推进，请刷新后重试，您的本次操作未生效"));
     }
 
     /**

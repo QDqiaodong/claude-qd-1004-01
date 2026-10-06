@@ -52,11 +52,11 @@ function askOperator() {
 function confirmOperator() {
   const v = operatorInput.value.trim()
   operatorDialog.value = false
-  if (operatorResolve) operatorResolve.resolve(v || null)
+  if (operatorResolve) operatorResolve(v || null)
 }
 function cancelOperator() {
   operatorDialog.value = false
-  if (operatorResolve) operatorResolve.resolve(null)
+  if (operatorResolve) operatorResolve(null)
 }
 
 async function runAction(action, confirmText, successText) {

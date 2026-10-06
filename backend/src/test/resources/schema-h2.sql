@@ -129,3 +129,63 @@ CREATE TABLE IF NOT EXISTS inspect_idem (
     created_at    DATETIME NOT NULL,
     CONSTRAINT uk_inspect_idem UNIQUE (tenant_id, request_id)
 );
+
+-- =====================================================================
+-- 管段检修影响评估与停复气联动（结构与生产 schema.sql 保持一致，H2 MySQL 模式）
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS maintenance_order (
+    id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id            VARCHAR(16) NOT NULL,
+    order_no             VARCHAR(40) NOT NULL,
+    plan_start_at        DATETIME NOT NULL,
+    plan_end_at          DATETIME,
+    owner_name           VARCHAR(32) NOT NULL,
+    remark               VARCHAR(512) NOT NULL DEFAULT '',
+    status               VARCHAR(16) NOT NULL,
+    frozen               TINYINT NOT NULL DEFAULT 0,
+    published_at         DATETIME,
+    published_by         VARCHAR(32),
+    cut_off_at           DATETIME,
+    cut_off_by           VARCHAR(32),
+    started_at           DATETIME,
+    work_done_at         DATETIME,
+    restore_requested_at DATETIME,
+    restored_at          DATETIME,
+    restored_by          VARCHAR(32),
+    version              BIGINT NOT NULL DEFAULT 0,
+    created_at           DATETIME NOT NULL,
+    updated_at           DATETIME NOT NULL,
+    CONSTRAINT uk_maintenance_order_no UNIQUE (tenant_id, order_no)
+);
+
+CREATE TABLE IF NOT EXISTS maintenance_impact (
+    id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id          VARCHAR(16) NOT NULL,
+    order_id           BIGINT NOT NULL,
+    target_type        VARCHAR(24) NOT NULL,
+    target_id          BIGINT,
+    target_code        VARCHAR(64) NOT NULL,
+    target_name        VARCHAR(128) NOT NULL,
+    source             VARCHAR(16) NOT NULL,
+    manual_note        VARCHAR(512),
+    acceptance_status  VARCHAR(16) NOT NULL DEFAULT '未验收',
+    accepted_at        DATETIME,
+    accepted_by        VARCHAR(32),
+    safety_status      VARCHAR(16) NOT NULL DEFAULT '未确认',
+    confirmed_at       DATETIME,
+    confirmed_by       VARCHAR(32),
+    created_at         DATETIME NOT NULL,
+    updated_at         DATETIME NOT NULL,
+    CONSTRAINT uk_maintenance_impact UNIQUE (tenant_id, order_id, target_type, target_id)
+);
+
+CREATE TABLE IF NOT EXISTS maintenance_idem (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id     VARCHAR(16) NOT NULL,
+    request_id    VARCHAR(64) NOT NULL,
+    action        VARCHAR(24) NOT NULL,
+    response_body VARCHAR(2048) NOT NULL,
+    created_at    DATETIME NOT NULL,
+    CONSTRAINT uk_maintenance_idem UNIQUE (tenant_id, request_id)
+);

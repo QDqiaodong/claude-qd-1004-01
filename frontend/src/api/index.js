@@ -77,5 +77,18 @@ export default {
   inspectTarget: (batchId, linkId, d) =>
     call(http.post(`/inspection-batches/${batchId}/targets/${linkId}/inspect`, d)),
   rectifyHazard: (id, d) => call(http.post(`/hazards/${id}/rectify`, d)),
-  reviewHazard: (id, d) => call(http.post(`/hazards/${id}/review`, d))
+  reviewHazard: (id, d) => call(http.post(`/hazards/${id}/review`, d)),
+
+  // ---------------- 管段检修影响评估与停复气联动 ----------------
+  listMaintenanceOrders: (p) => call(http.get('/maintenance-orders', params(p))),
+  getMaintenanceOrder: (id) => call(http.get(`/maintenance-orders/${id}`)),
+  createMaintenanceOrder: (d) => call(http.post('/maintenance-orders', d)),
+  updateMaintenanceOrder: (id, d) => call(http.put(`/maintenance-orders/${id}`, d)),
+  recomputeMaintenance: (id) => call(http.post(`/maintenance-orders/${id}/recompute`)),
+  maintenanceAction: (id, action, d) =>
+    call(http.post(`/maintenance-orders/${id}/${action}`, d)),
+  acceptMaintenanceImpact: (id, impactId, d) =>
+    call(http.post(`/maintenance-orders/${id}/impacts/${impactId}/accept`, d)),
+  confirmMaintenanceSafety: (id, impactId, d) =>
+    call(http.post(`/maintenance-orders/${id}/impacts/${impactId}/safety`, d))
 }

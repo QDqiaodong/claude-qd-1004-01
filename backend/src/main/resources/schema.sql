@@ -17,6 +17,9 @@ CREATE DATABASE IF NOT EXISTS citygas_network
 USE citygas_network;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS maintenance_idem;
+DROP TABLE IF EXISTS maintenance_impact;
+DROP TABLE IF EXISTS maintenance_order;
 DROP TABLE IF EXISTS inspect_idem;
 DROP TABLE IF EXISTS inspect_hazard_history;
 DROP TABLE IF EXISTS inspect_hazard;
@@ -223,4 +226,80 @@ CREATE TABLE inspect_idem (
     response_body   VARCHAR(2048) NOT NULL COMMENT '首次成功响应 JSON 快照',
     created_at      DATETIME NOT NULL,
     UNIQUE KEY uk_inspect_idem (tenant_id, request_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================================
+-- 管段检修影响评估与停复气联动
+-- 检修单状态机：待发布 → 待停气 → 施工中 → 待验收 → 待复气 → 已完成
+--   待发布：草稿，可改检修范围与人工边界；发布时冻结影响快照，失败整体回滚、编辑内容保留
+--   待停气：已发布（快照冻结），按计划执行停气；停气后方可开工
+--   施工中：已停气开工；施工结束申请验收
+--   待验收：逐管段验收；全部管段验收通过后可申请复气
+--   待复气：全部受影响燃气用户安全确认完成后才能复气放行
+--   已完成：复气放行，闭环
+-- 发布后基础档案（改名/停用/拓扑）变化只能在详情里提示差异，绝不静默改写已冻结范围。
+-- =====================================================================
+
+-- ---------------- 检修单 ----------------
+CREATE TABLE maintenance_order (
+    id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id            VARCHAR(16) NOT NULL COMMENT 'A片区/B片区（@TenantId）',
+    order_no             VARCHAR(40) NOT NULL COMMENT '检修单编号，租户内唯一',
+    plan_start_at        DATETIME NOT NULL COMMENT '计划停气/施工开始时间',
+    plan_end_at          DATETIME COMMENT '计划复气/施工结束时间',
+    owner_name           VARCHAR(32) NOT NULL COMMENT '施工负责人',
+    remark               VARCHAR(512) NOT NULL DEFAULT '' COMMENT '检修说明',
+    status               VARCHAR(16) NOT NULL COMMENT '待发布/待停气/施工中/待验收/待复气/已完成',
+    frozen               TINYINT NOT NULL DEFAULT 0 COMMENT '影响快照是否已冻结：0 草稿，1 已发布冻结',
+    published_at         DATETIME COMMENT '发布冻结时间',
+    published_by         VARCHAR(32) COMMENT '发布操作人',
+    cut_off_at           DATETIME COMMENT '停气时间',
+    cut_off_by           VARCHAR(32) COMMENT '停气操作人',
+    started_at           DATETIME COMMENT '实际开工时间（必须在停气之后）',
+    work_done_at         DATETIME COMMENT '施工完成时间',
+    restore_requested_at DATETIME COMMENT '申请复气时间',
+    restored_at          DATETIME COMMENT '复气放行时间',
+    restored_by          VARCHAR(32) COMMENT '复气操作人',
+    version              BIGINT NOT NULL DEFAULT 0 COMMENT '乐观锁版本，并发发布/复气只允许一人推进',
+    created_at           DATETIME NOT NULL,
+    updated_at           DATETIME NOT NULL,
+    UNIQUE KEY uk_maintenance_order_no (tenant_id, order_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------- 检修影响清单（草稿可编辑，发布即冻结） ----------------
+CREATE TABLE maintenance_impact (
+    id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id          VARCHAR(16) NOT NULL,
+    order_id           BIGINT NOT NULL,
+    target_type        VARCHAR(24) NOT NULL COMMENT 'PIPE_SEGMENT/GATE_STATION/REGULATOR_STATION/GAS_USER/MANUAL',
+    target_id          BIGINT COMMENT '对象 ID 快照；MANUAL 人工边界为空',
+    target_code        VARCHAR(64) NOT NULL COMMENT '对象编号快照（seg_code/station_code/user_no/人工边界）',
+    target_name        VARCHAR(128) NOT NULL COMMENT '对象名称/位置快照',
+    source             VARCHAR(16) NOT NULL COMMENT 'AUTO 拓扑自动关联 / MANUAL 人工边界说明',
+    manual_note        VARCHAR(512) COMMENT '人工无法自动判定的边界对象说明',
+    -- 管段维度
+    acceptance_status  VARCHAR(16) NOT NULL DEFAULT '未验收' COMMENT '未验收/验收通过/验收不通过',
+    accepted_at        DATETIME,
+    accepted_by        VARCHAR(32),
+    -- 燃气用户维度
+    safety_status      VARCHAR(16) NOT NULL DEFAULT '未确认' COMMENT '未确认/已确认',
+    confirmed_at       DATETIME,
+    confirmed_by       VARCHAR(32),
+    created_at         DATETIME NOT NULL,
+    updated_at         DATETIME NOT NULL,
+    UNIQUE KEY uk_maintenance_impact (tenant_id, order_id, target_type, target_id),
+    KEY idx_maintenance_impact_order (tenant_id, order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------- 检修动作网络重试幂等记录表 ----------------
+-- 发布 / 停气 / 开工 / 完工 / 验收 / 安全确认 / 复气携带 requestId：
+-- 同租户同 requestId 重试直接回放首次结果，不重复推进状态、不留半冻结快照。
+CREATE TABLE maintenance_idem (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id     VARCHAR(16) NOT NULL,
+    request_id    VARCHAR(64) NOT NULL,
+    action        VARCHAR(24) NOT NULL COMMENT 'PUBLISH/CUTOFF/START_WORK/FINISH_WORK/ACCEPT/CONFIRM_SAFETY/RESTORE',
+    response_body VARCHAR(2048) NOT NULL COMMENT '首次成功响应 JSON 快照',
+    created_at    DATETIME NOT NULL,
+    UNIQUE KEY uk_maintenance_idem (tenant_id, request_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
